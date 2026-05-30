@@ -1,49 +1,310 @@
 <!DOCTYPE html>
-<html>
+<html lang="fa" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<title>Post</title>
-<style>
-body{
-    font-family:sans-serif;
-    background:#0f1115;
-    color:white;
-    padding:20px;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>📋 کلیپ‌بورد | شبکه اجتماعی شخصی</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; transition: all 0.2s ease; }
+        body {
+            font-family: 'Vazir', 'BYekan', Tahoma, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+        :root {
+            --bg-primary: #f8f9fa;
+            --bg-secondary: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --border: #dee2e6;
+            --accent: #0d6efd;
+            --accent-hover: #0b5ed7;
+            --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+            --card-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border);
+        }
+        button, .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: var(--accent-hover); }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+        }
+        .post-card {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .post-card:hover { transform: translateY(-4px); }
+        .search-box {
+            margin-bottom: 20px;
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+            background: var(--bg-primary);
+            padding: 10px 0;
+        }
+        .lang-selector {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .card { padding: 16px; }
+        }
+    </style>
 </head>
-
 <body>
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1>📋 کلیپ‌بورد</h1>
+        <div class="lang-selector">
+            <button id="btn-fa">🇮🇷 فارسی</button>
+            <button id="btn-en">🇬🇧 English</button>
+        </div>
+    </div>
 
-<div id="post"></div>
+    <div class="card">
+        <h3 id="new-post-title">✨ پست جدید</h3>
+        <input type="text" id="postTitle" placeholder="عنوان پست ...">
+        <textarea id="postContent" rows="4" placeholder="متن پست ..."></textarea>
+        <input type="text" id="postImage" placeholder="لینک تصویر (اختیاری)">
+        <input type="text" id="postLink" placeholder="لینک خارجی (اختیاری)">
+        <button id="savePostBtn">✅ ذخیره پست</button>
+    </div>
 
+    <div class="search-box card">
+        <input type="text" id="searchInput" placeholder="🔍 جستجو در پست‌ها ...">
+    </div>
+
+    <div id="postsList"></div>
+</div>
+
+<div class="theme-toggle" id="themeToggle">🌙</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+    // ========== CONFIGURATION ==========
+    const GITHUB_TOKEN = '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';
+    const REPO_OWNER = 'aghaerfan';
+    const REPO_NAME = 'ClipBoard';
+    const POSTS_FILE_PATH = 'posts.json';
+    const BRANCH = 'main';
+    // ===================================
 
-const OWNER = "YOUR_USERNAME";
-const REPO = "YOUR_REPO";
+    let allPosts = [];
+    let currentLang = 'fa';
+    let currentTheme = 'light';
 
-function getFile(){
-    return new URLSearchParams(location.search).get("file");
-}
+    // --- GitHub API Helpers ---
+    async function getCurrentFileSHA() {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${POSTS_FILE_PATH}`;
+        const res = await fetch(url, {
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+        });
+        if (res.status === 404) return null;
+        const data = await res.json();
+        return data.sha;
+    }
 
-async function load(){
+    async function loadPostsFromGitHub() {
+        try {
+            const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${POSTS_FILE_PATH}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                allPosts = await res.json();
+            } else {
+                allPosts = [];
+            }
+            renderPosts();
+        } catch (error) {
+            console.error("خطا در دریافت پست‌ها:", error);
+            allPosts = [];
+            renderPosts();
+        }
+    }
 
-    let file = getFile();
+    async function savePostsToGitHub() {
+        try {
+            const sha = await getCurrentFileSHA();
+            const content = btoa(unescape(encodeURIComponent(JSON.stringify(allPosts, null, 2))));
+            const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${POSTS_FILE_PATH}`;
+            const body = {
+                message: `Update posts - ${new Date().toISOString()}`,
+                content: content,
+                branch: BRANCH
+            };
+            if (sha) body.sha = sha;
+            const res = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${GITHUB_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error('Failed to save');
+            alert('پست با موفقیت ذخیره شد!');
+            await loadPostsFromGitHub();
+        } catch (error) {
+            console.error("خطا در ذخیره:", error);
+            alert('خطا در ذخیره پست!');
+        }
+    }
 
-    let res = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${file}`);
-    let data = await res.json();
+    function addPost(post) {
+        allPosts.unshift({ ...post, id: Date.now().toString(), likes: 0, comments: [], date: new Date().toISOString() });
+        savePostsToGitHub();
+    }
 
-    document.getElementById("post").innerHTML = `
-        <h1>${data.title}</h1>
-        <p>${data.content}</p>
-        <small>${data.date}</small>
-    `;
-}
+    function toggleLike(postId) {
+        const post = allPosts.find(p => p.id === postId);
+        if (post) {
+            post.likes = (post.likes || 0) + 1;
+            savePostsToGitHub();
+        }
+    }
 
-load();
+    function addComment(postId, commentText) {
+        const post = allPosts.find(p => p.id === postId);
+        if (post && commentText.trim()) {
+            post.comments = post.comments || [];
+            post.comments.push({ text: commentText, date: new Date().toISOString() });
+            savePostsToGitHub();
+        }
+    }
 
+    function deletePost(postId) {
+        if (confirm('آیا از حذف این پست مطمئن هستید؟')) {
+            allPosts = allPosts.filter(p => p.id !== postId);
+            savePostsToGitHub();
+        }
+    }
+
+    // --- UI Helpers ---
+    function renderPosts() {
+        const container = document.getElementById('postsList');
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filteredPosts = allPosts.filter(p =>
+            p.title.toLowerCase().includes(searchTerm) ||
+            p.content.toLowerCase().includes(searchTerm)
+        );
+        if (filteredPosts.length === 0) {
+            container.innerHTML = `<div class="card">${currentLang === 'fa' ? '✨ هیچ پستی یافت نشد!' : '✨ No posts found!'}</div>`;
+            return;
+        }
+        container.innerHTML = filteredPosts.map(post => `
+            <div class="card post-card" onclick="window.location.href='/p/${post.id}'">
+                <h3>${escapeHtml(post.title)}</h3>
+                <p>${marked.parse(post.content.substring(0, 150))}${post.content.length > 150 ? '...' : ''}</p>
+                ${post.image ? `<img src="${post.image}" style="max-width:100%; border-radius:12px; margin:10px 0;">` : ''}
+                <div style="display:flex; gap:15px; margin-top:10px;">
+                    <button onclick="event.stopPropagation(); toggleLike('${post.id}')">❤️ ${post.likes || 0}</button>
+                    <button onclick="event.stopPropagation(); showCommentBox('${post.id}')">💬 ${(post.comments || []).length}</button>
+                    <button onclick="event.stopPropagation(); deletePost('${post.id}')">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function showCommentBox(postId) {
+        const comment = prompt('نظر خود را وارد کنید:');
+        if (comment) addComment(postId, comment);
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        document.body.dir = lang === 'fa' ? 'rtl' : 'ltr';
+        document.documentElement.lang = lang === 'fa' ? 'fa' : 'en';
+        document.getElementById('new-post-title').innerText = lang === 'fa' ? '✨ پست جدید' : '✨ New Post';
+        document.getElementById('savePostBtn').innerText = lang === 'fa' ? '✅ ذخیره پست' : '✅ Save Post';
+        document.getElementById('searchInput').placeholder = lang === 'fa' ? '🔍 جستجو در پست‌ها ...' : '🔍 Search posts ...';
+    }
+
+    function setTheme(theme) {
+        currentTheme = theme;
+        document.body.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        document.getElementById('themeToggle').innerText = theme === 'dark' ? '☀️' : '🌙';
+    }
+
+    document.getElementById('savePostBtn').onclick = () => {
+        const title = document.getElementById('postTitle').value;
+        const content = document.getElementById('postContent').value;
+        const image = document.getElementById('postImage').value;
+        const link = document.getElementById('postLink').value;
+        if (!title || !content) return alert('لطفاً عنوان و متن پست را وارد کنید!');
+        addPost({ title, content, image, link });
+        document.getElementById('postTitle').value = '';
+        document.getElementById('postContent').value = '';
+        document.getElementById('postImage').value = '';
+        document.getElementById('postLink').value = '';
+    };
+
+    document.getElementById('searchInput').addEventListener('input', renderPosts);
+    document.getElementById('btn-fa').onclick = () => setLanguage('fa');
+    document.getElementById('btn-en').onclick = () => setLanguage('en');
+    document.getElementById('themeToggle').onclick = () => setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+    setLanguage('fa');
+    loadPostsFromGitHub();
 </script>
-
 </body>
 </html>
-
