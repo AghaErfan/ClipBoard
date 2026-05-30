@@ -3,79 +3,78 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Link Posts</title>
+<title>ClipBoard</title>
 
 <style>
-@font-face {
-    font-family: "BYekan";
-    src: url("https://cdn.jsdelivr.net/gh/rastikerdar/byekan-font@v1.0.0/BYekan.woff");
-}
-
 body{
     margin:0;
-    font-family: BYekan, sans-serif;
-    background:#0f0f13;
+    font-family:sans-serif;
+    background:#0f1115;
     color:#fff;
 }
 
+.light{
+    background:#f5f5f5;
+    color:#111;
+}
+
 .container{
-    max-width:700px;
+    max-width:800px;
     margin:auto;
-    padding:20px;
-}
-
-.header{
-    text-align:center;
-    font-size:22px;
-    margin-bottom:20px;
-}
-
-.card{
-    background:#1c1c24;
     padding:15px;
-    border-radius:12px;
+}
+
+header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
     margin-bottom:10px;
 }
 
 input, textarea{
     width:100%;
     padding:10px;
-    margin:8px 0;
+    margin:5px 0;
     border-radius:8px;
     border:none;
-    outline:none;
 }
 
 button{
-    width:100%;
-    padding:10px;
+    padding:8px 10px;
     border:none;
     border-radius:8px;
-    background:#6c5ce7;
-    color:white;
-    font-size:16px;
     cursor:pointer;
+    background:#6c5ce7;
+    color:#fff;
 }
 
-button:hover{
-    background:#5a4bd6;
+.post{
+    background:#1b1e27;
+    padding:10px;
+    margin-top:10px;
+    border-radius:10px;
 }
 
-.post-img{
+.light .post{
+    background:#fff;
+    color:#111;
+}
+
+img{
     width:100%;
     border-radius:10px;
-    margin-top:10px;
 }
 
-.link-box{
-    background:#111;
-    padding:10px;
-    border-radius:8px;
-    word-break:break-all;
-    margin-top:10px;
+.small{
+    font-size:12px;
+    opacity:0.7;
 }
 
-a{ color:#00d2ff; }
+.row{
+    display:flex;
+    gap:5px;
+    margin-top:5px;
+}
 </style>
 </head>
 
@@ -83,104 +82,187 @@ a{ color:#00d2ff; }
 
 <div class="container">
 
-<div class="header">❤️ Coded By Erfan</div>
+<header>
+<h2>📋 ClipBoard</h2>
+<button onclick="toggleTheme()">🌙</button>
+</header>
 
 <div id="app"></div>
 
 </div>
 
 <script>
-// Encode / Decode
-function encode(data){
-    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+
+// ---------------- STORAGE ----------------
+let posts = JSON.parse(localStorage.getItem("posts") || "[]");
+
+function save(){
+    localStorage.setItem("posts", JSON.stringify(posts));
 }
 
-function decode(data){
-    return JSON.parse(decodeURIComponent(escape(atob(data))));
+// ---------------- ID GENERATOR ----------------
+function makeId(){
+    return Math.random().toString(36).substr(2,5);
 }
 
-const app = document.getElementById("app");
+// ---------------- ROUTER ----------------
+function getPath(){
+    return location.pathname;
+}
 
-// اگر لینک پست باشد
-if(location.hash.length > 1){
+// ---------------- ADD POST ----------------
+function addPost(){
 
-    let post = decode(location.hash.slice(1));
+    const title = document.getElementById("title").value;
+    const text = document.getElementById("text").value;
+    const link = document.getElementById("link").value;
+    const imgFile = document.getElementById("img").files[0];
 
-    app.innerHTML = `
-        <div class="card">
-            <h2>${post.title}</h2>
-            <p>${post.desc}</p>
+    if(!title) return alert("عنوان خالیه");
 
-            ${post.img ? `<img class="post-img" src="${post.img}">` : ""}
+    function finish(img){
 
-            ${post.url ? `<p><a href="${post.url}" target="_blank">${post.url}</a></p>` : ""}
-        </div>
+        let id = makeId();
 
-        <button onclick="location.href='/'">⬅ برگشت</button>
-    `;
+        let post = {
+            id,
+            title,
+            text,
+            link,
+            img,
+            likes:0,
+            comments:[]
+        };
 
-}else{
+        posts.unshift(post);
+        save();
 
-// فرم ساخت پست
-app.innerHTML = `
-<div class="card">
+        render();
 
-<input id="title" placeholder="عنوان">
-<textarea id="desc" placeholder="توضیحات"></textarea>
-<input id="url" placeholder="لینک (اختیاری)">
+        let url = location.origin + location.pathname + "p/" + id;
 
-<input type="file" id="img">
+        alert("لینک ساخته شد:\n" + url);
+    }
 
-<button onclick="publish()">Publish</button>
+    if(imgFile){
+        let r = new FileReader();
+        r.onload = e => finish(e.target.result);
+        r.readAsDataURL(imgFile);
+    }else{
+        finish("");
+    }
+}
 
-<div id="result"></div>
+// ---------------- CARD ----------------
+function card(p){
+return `
+<div class="post">
+<h3>${p.title}</h3>
+<p>${p.text}</p>
+
+${p.img ? `<img src="${p.img}">` : ""}
+
+${p.link ? `<a href="${p.link}" target="_blank">${p.link}</a>` : ""}
+
+<div class="row">
+<button onclick="like('${p.id}')">❤️ ${p.likes}</button>
+<button onclick="openPost('${p.id}')">Open</button>
+</div>
+
+<input placeholder="کامنت..." onkeydown="if(event.key==='Enter') addComment('${p.id}',this.value)">
+
+${(p.comments||[]).map(c=>`<div class="small">💬 ${c}</div>`).join("")}
 
 </div>
 `;
 }
 
-function publish(){
-
-    const title = document.getElementById("title").value;
-    const desc = document.getElementById("desc").value;
-    const url = document.getElementById("url").value;
-    const imgFile = document.getElementById("img").files[0];
-
-    if(!title) return alert("عنوان خالیه");
-
-    function finish(imgBase64){
-
-        const data = {
-            title,
-            desc,
-            url,
-            img: imgBase64
-        };
-
-        const hash = encode(data);
-
-        const link = location.origin + location.pathname + "#" + hash;
-
-        document.getElementById("result").innerHTML = `
-            <div class="link-box">
-                لینک پست:<br>
-                <a href="${link}" target="_blank">${link}</a>
-            </div>
-
-            <button onclick="navigator.clipboard.writeText('${link}')">
-                کپی لینک
-            </button>
-        `;
-    }
-
-    if(imgFile){
-        const reader = new FileReader();
-        reader.onload = e => finish(e.target.result);
-        reader.readAsDataURL(imgFile);
-    }else{
-        finish("");
-    }
+// ---------------- LIKE ----------------
+function like(id){
+    let p = posts.find(x=>x.id==id);
+    p.likes++;
+    save();
+    render();
 }
+
+// ---------------- COMMENT ----------------
+function addComment(id,val){
+    let p = posts.find(x=>x.id==id);
+    p.comments.push(val);
+    save();
+    render();
+}
+
+// ---------------- OPEN ----------------
+function openPost(id){
+    location.href = location.origin + location.pathname + "p/" + id;
+}
+
+// ---------------- RENDER ----------------
+function render(){
+
+let app = document.getElementById("app");
+
+let path = getPath();
+
+// ---------- SINGLE POST PAGE ----------
+if(path.includes("/p/")){
+
+    let id = path.split("/p/")[1];
+    let p = posts.find(x=>x.id==id);
+
+    if(!p){
+        app.innerHTML = "Not Found";
+        return;
+    }
+
+    app.innerHTML = `
+        <button onclick="goHome()">⬅ Back</button>
+        ${card(p)}
+    `;
+    return;
+}
+
+// ---------- HOME ----------
+app.innerHTML = `
+<h3>ساخت پست</h3>
+
+<input id="title" placeholder="عنوان">
+<textarea id="text" placeholder="متن"></textarea>
+<input id="link" placeholder="لینک">
+<input type="file" id="img">
+
+<button onclick="addPost()">Publish</button>
+
+<hr>
+
+<input oninput="render()" id="search" placeholder="جستجو...">
+
+<div>
+${posts.map(card).join("")}
+</div>
+`;
+
+}
+
+// ---------------- BACK ----------------
+function goHome(){
+    location.href = location.origin + location.pathname;
+}
+
+// ---------------- THEME ----------------
+function toggleTheme(){
+    document.body.classList.toggle("light");
+    localStorage.setItem("theme", document.body.classList.contains("light") ? "light":"dark");
+}
+
+// ---------------- INIT ----------------
+if(localStorage.getItem("theme")==="light"){
+    document.body.classList.add("light");
+}
+
+render();
+
 </script>
 
 </body>
