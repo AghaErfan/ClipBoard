@@ -6,9 +6,15 @@
 <title>ClipBoard</title>
 
 <style>
+
+@font-face {
+    font-family: "BYekan";
+    src: url("https://cdn.jsdelivr.net/gh/rastikerdar/byekan-font@v1.0.0/BYekan.woff");
+}
+
 body{
     margin:0;
-    font-family:sans-serif;
+    font-family: BYekan, sans-serif;
     background:#0f1115;
     color:#fff;
 }
@@ -19,7 +25,7 @@ body{
 }
 
 .container{
-    max-width:800px;
+    max-width:850px;
     margin:auto;
     padding:15px;
 }
@@ -37,6 +43,7 @@ input, textarea{
     margin:5px 0;
     border-radius:8px;
     border:none;
+    font-family: BYekan;
 }
 
 button{
@@ -50,9 +57,9 @@ button{
 
 .post{
     background:#1b1e27;
-    padding:10px;
+    padding:12px;
     margin-top:10px;
-    border-radius:10px;
+    border-radius:12px;
 }
 
 .light .post{
@@ -63,6 +70,7 @@ button{
 img{
     width:100%;
     border-radius:10px;
+    margin-top:5px;
 }
 
 .small{
@@ -70,11 +78,24 @@ img{
     opacity:0.7;
 }
 
+/* RTL / LTR */
+.rtl{
+    direction:rtl;
+    text-align:right;
+}
+
+.ltr{
+    direction:ltr;
+    text-align:left;
+}
+
 .row{
     display:flex;
     gap:5px;
     margin-top:5px;
 }
+
+a{color:#00d2ff}
 </style>
 </head>
 
@@ -100,23 +121,29 @@ function save(){
     localStorage.setItem("posts", JSON.stringify(posts));
 }
 
-// ---------------- ID GENERATOR ----------------
+// ---------------- ID ----------------
 function makeId(){
     return Math.random().toString(36).substr(2,5);
 }
 
-// ---------------- ROUTER ----------------
-function getPath(){
+// ---------------- RTL / LTR DETECTOR ----------------
+function getDir(text){
+    const fa = /[\u0600-\u06FF]/;
+    return fa.test(text) ? "rtl" : "ltr";
+}
+
+// ---------------- ROUTE ----------------
+function path(){
     return location.pathname;
 }
 
 // ---------------- ADD POST ----------------
 function addPost(){
 
-    const title = document.getElementById("title").value;
-    const text = document.getElementById("text").value;
-    const link = document.getElementById("link").value;
-    const imgFile = document.getElementById("img").files[0];
+    let title = document.getElementById("title").value;
+    let text = document.getElementById("text").value;
+    let link = document.getElementById("link").value;
+    let file = document.getElementById("img").files[0];
 
     if(!title) return alert("عنوان خالیه");
 
@@ -136,29 +163,32 @@ function addPost(){
 
         posts.unshift(post);
         save();
-
         render();
 
-        let url = location.origin + location.pathname + "p/" + id;
-
-        alert("لینک ساخته شد:\n" + url);
+        alert("لینک پست:\n" + location.origin + location.pathname + "p/" + id);
     }
 
-    if(imgFile){
+    if(file){
         let r = new FileReader();
         r.onload = e => finish(e.target.result);
-        r.readAsDataURL(imgFile);
+        r.readAsDataURL(file);
     }else{
         finish("");
     }
 }
 
-// ---------------- CARD ----------------
+// ---------------- POST CARD ----------------
 function card(p){
+
+let dirTitle = getDir(p.title);
+let dirText = getDir(p.text);
+
 return `
-<div class="post">
-<h3>${p.title}</h3>
-<p>${p.text}</p>
+<div class="post ${dirTitle}">
+
+<h3 class="${dirTitle}">${p.title}</h3>
+
+<p class="${dirText}">${p.text}</p>
 
 ${p.img ? `<img src="${p.img}">` : ""}
 
@@ -171,7 +201,9 @@ ${p.link ? `<a href="${p.link}" target="_blank">${p.link}</a>` : ""}
 
 <input placeholder="کامنت..." onkeydown="if(event.key==='Enter') addComment('${p.id}',this.value)">
 
-${(p.comments||[]).map(c=>`<div class="small">💬 ${c}</div>`).join("")}
+${(p.comments||[]).map(c=>`
+<div class="small ${getDir(c)}">💬 ${c}</div>
+`).join("")}
 
 </div>
 `;
@@ -198,27 +230,33 @@ function openPost(id){
     location.href = location.origin + location.pathname + "p/" + id;
 }
 
+// ---------------- THEME ----------------
+function toggleTheme(){
+    document.body.classList.toggle("light");
+    localStorage.setItem("theme", document.body.classList.contains("light") ? "light":"dark");
+}
+
 // ---------------- RENDER ----------------
 function render(){
 
 let app = document.getElementById("app");
 
-let path = getPath();
+let p = path();
 
-// ---------- SINGLE POST PAGE ----------
-if(path.includes("/p/")){
+// ---------- SINGLE POST ----------
+if(p.includes("/p/")){
 
-    let id = path.split("/p/")[1];
-    let p = posts.find(x=>x.id==id);
+    let id = p.split("/p/")[1];
+    let post = posts.find(x=>x.id==id);
 
-    if(!p){
+    if(!post){
         app.innerHTML = "Not Found";
         return;
     }
 
     app.innerHTML = `
-        <button onclick="goHome()">⬅ Back</button>
-        ${card(p)}
+        <button onclick="location.href='/'">⬅ Back</button>
+        ${card(post)}
     `;
     return;
 }
@@ -243,17 +281,6 @@ ${posts.map(card).join("")}
 </div>
 `;
 
-}
-
-// ---------------- BACK ----------------
-function goHome(){
-    location.href = location.origin + location.pathname;
-}
-
-// ---------------- THEME ----------------
-function toggleTheme(){
-    document.body.classList.toggle("light");
-    localStorage.setItem("theme", document.body.classList.contains("light") ? "light":"dark");
 }
 
 // ---------------- INIT ----------------
