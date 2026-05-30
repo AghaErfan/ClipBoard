@@ -1,294 +1,46 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ClipBoard</title>
-
+<title>Post</title>
 <style>
-
-@font-face {
-    font-family: "BYekan";
-    src: url("https://cdn.jsdelivr.net/gh/rastikerdar/byekan-font@v1.0.0/BYekan.woff");
-}
-
 body{
-    margin:0;
-    font-family: BYekan, sans-serif;
+    font-family:sans-serif;
     background:#0f1115;
-    color:#fff;
+    color:white;
+    padding:20px;
 }
-
-.light{
-    background:#f5f5f5;
-    color:#111;
-}
-
-.container{
-    max-width:850px;
-    margin:auto;
-    padding:15px;
-}
-
-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:10px;
-}
-
-input, textarea{
-    width:100%;
-    padding:10px;
-    margin:5px 0;
-    border-radius:8px;
-    border:none;
-    font-family: BYekan;
-}
-
-button{
-    padding:8px 10px;
-    border:none;
-    border-radius:8px;
-    cursor:pointer;
-    background:#6c5ce7;
-    color:#fff;
-}
-
-.post{
-    background:#1b1e27;
-    padding:12px;
-    margin-top:10px;
-    border-radius:12px;
-}
-
-.light .post{
-    background:#fff;
-    color:#111;
-}
-
-img{
-    width:100%;
-    border-radius:10px;
-    margin-top:5px;
-}
-
-.small{
-    font-size:12px;
-    opacity:0.7;
-}
-
-/* RTL / LTR */
-.rtl{
-    direction:rtl;
-    text-align:right;
-}
-
-.ltr{
-    direction:ltr;
-    text-align:left;
-}
-
-.row{
-    display:flex;
-    gap:5px;
-    margin-top:5px;
-}
-
-a{color:#00d2ff}
 </style>
 </head>
 
 <body>
 
-<div class="container">
-
-<header>
-<h2>📋 ClipBoard</h2>
-<button onclick="toggleTheme()">🌙</button>
-</header>
-
-<div id="app"></div>
-
-</div>
+<div id="post"></div>
 
 <script>
 
-// ---------------- STORAGE ----------------
-let posts = JSON.parse(localStorage.getItem("posts") || "[]");
+const OWNER = "YOUR_USERNAME";
+const REPO = "YOUR_REPO";
 
-function save(){
-    localStorage.setItem("posts", JSON.stringify(posts));
+function getFile(){
+    return new URLSearchParams(location.search).get("file");
 }
 
-// ---------------- ID ----------------
-function makeId(){
-    return Math.random().toString(36).substr(2,5);
-}
+async function load(){
 
-// ---------------- RTL / LTR DETECTOR ----------------
-function getDir(text){
-    const fa = /[\u0600-\u06FF]/;
-    return fa.test(text) ? "rtl" : "ltr";
-}
+    let file = getFile();
 
-// ---------------- ROUTE ----------------
-function path(){
-    return location.pathname;
-}
+    let res = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${file}`);
+    let data = await res.json();
 
-// ---------------- ADD POST ----------------
-function addPost(){
-
-    let title = document.getElementById("title").value;
-    let text = document.getElementById("text").value;
-    let link = document.getElementById("link").value;
-    let file = document.getElementById("img").files[0];
-
-    if(!title) return alert("عنوان خالیه");
-
-    function finish(img){
-
-        let id = makeId();
-
-        let post = {
-            id,
-            title,
-            text,
-            link,
-            img,
-            likes:0,
-            comments:[]
-        };
-
-        posts.unshift(post);
-        save();
-        render();
-
-        alert("لینک پست:\n" + location.origin + location.pathname + "p/" + id);
-    }
-
-    if(file){
-        let r = new FileReader();
-        r.onload = e => finish(e.target.result);
-        r.readAsDataURL(file);
-    }else{
-        finish("");
-    }
-}
-
-// ---------------- POST CARD ----------------
-function card(p){
-
-let dirTitle = getDir(p.title);
-let dirText = getDir(p.text);
-
-return `
-<div class="post ${dirTitle}">
-
-<h3 class="${dirTitle}">${p.title}</h3>
-
-<p class="${dirText}">${p.text}</p>
-
-${p.img ? `<img src="${p.img}">` : ""}
-
-${p.link ? `<a href="${p.link}" target="_blank">${p.link}</a>` : ""}
-
-<div class="row">
-<button onclick="like('${p.id}')">❤️ ${p.likes}</button>
-<button onclick="openPost('${p.id}')">Open</button>
-</div>
-
-<input placeholder="کامنت..." onkeydown="if(event.key==='Enter') addComment('${p.id}',this.value)">
-
-${(p.comments||[]).map(c=>`
-<div class="small ${getDir(c)}">💬 ${c}</div>
-`).join("")}
-
-</div>
-`;
-}
-
-// ---------------- LIKE ----------------
-function like(id){
-    let p = posts.find(x=>x.id==id);
-    p.likes++;
-    save();
-    render();
-}
-
-// ---------------- COMMENT ----------------
-function addComment(id,val){
-    let p = posts.find(x=>x.id==id);
-    p.comments.push(val);
-    save();
-    render();
-}
-
-// ---------------- OPEN ----------------
-function openPost(id){
-    location.href = location.origin + location.pathname + "p/" + id;
-}
-
-// ---------------- THEME ----------------
-function toggleTheme(){
-    document.body.classList.toggle("light");
-    localStorage.setItem("theme", document.body.classList.contains("light") ? "light":"dark");
-}
-
-// ---------------- RENDER ----------------
-function render(){
-
-let app = document.getElementById("app");
-
-let p = path();
-
-// ---------- SINGLE POST ----------
-if(p.includes("/p/")){
-
-    let id = p.split("/p/")[1];
-    let post = posts.find(x=>x.id==id);
-
-    if(!post){
-        app.innerHTML = "Not Found";
-        return;
-    }
-
-    app.innerHTML = `
-        <button onclick="location.href='/'">⬅ Back</button>
-        ${card(post)}
+    document.getElementById("post").innerHTML = `
+        <h1>${data.title}</h1>
+        <p>${data.content}</p>
+        <small>${data.date}</small>
     `;
-    return;
 }
 
-// ---------- HOME ----------
-app.innerHTML = `
-<h3>ساخت پست</h3>
-
-<input id="title" placeholder="عنوان">
-<textarea id="text" placeholder="متن"></textarea>
-<input id="link" placeholder="لینک">
-<input type="file" id="img">
-
-<button onclick="addPost()">Publish</button>
-
-<hr>
-
-<input oninput="render()" id="search" placeholder="جستجو...">
-
-<div>
-${posts.map(card).join("")}
-</div>
-`;
-
-}
-
-// ---------------- INIT ----------------
-if(localStorage.getItem("theme")==="light"){
-    document.body.classList.add("light");
-}
-
-render();
+load();
 
 </script>
 
