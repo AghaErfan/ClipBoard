@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشاهده پست | کلیپ‌بورد</title>
+    <style>
+        /* دقیقاً همان استایل‌های index.html را اینجا کپی کنید */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Vazir', 'BYekan', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+        }
+        :root {
+            --bg-primary: #f8f9fa;
+            --bg-secondary: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --border: #dee2e6;
+            --accent: #0d6efd;
+            --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border);
+        }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 24px;
+            cursor: pointer;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div id="postDetail" class="card">در حال بارگذاری...</div>
+    <div class="card">
+        <h3>💬 نظرات</h3>
+        <div id="commentsList"></div>
+        <textarea id="newComment" rows="3" placeholder="نظر خود را بنویسید..."></textarea>
+        <button id="submitComment">ارسال نظر</button>
+    </div>
+    <button onclick="window.location.href='/'">🏠 بازگشت به صفحه اصلی</button>
+</div>
+
+<script>
+    const GITHUB_TOKEN = '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';
+    const REPO_OWNER = 'aghaerfan';
+    const REPO_NAME = 'ClipBoard';
+    const POSTS_FILE_PATH = 'posts.json';
+    const BRANCH = 'main';
+
+    let allPosts = [];
+    let currentPostId = window.location.pathname.split('/').pop();
+
+    async function loadData() {
+        const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${POSTS_FILE_PATH}`;
+        const res = await fetch(url);
+        allPosts = await res.json();
+        const post = allPosts.find(p => p.id === currentPostId);
+        if (post) {
+            document.getElementById('postDetail').innerHTML = `
+                <h1>${post.title}</h1>
+                <p>${post.content}</p>
+                ${post.image ? `<img src="${post.image}" style="max-width:100%; border-radius:12px;">` : ''}
+                ${post.link ? `<a href="${post.link}" target="_blank">🔗 لینک مرتبط</a>` : ''}
+                <div>❤️ ${post.likes || 0} لایک</div>
+            `;
+            renderComments(post.comments || []);
+        } else {
+            document.getElementById('postDetail').innerHTML = '<p>پست مورد نظر یافت نشد.</p>';
+        }
+    }
+
+    function renderComments(comments) {
+        const container = document.getElementById('commentsList');
+        if (comments.length === 0) {
+            container.innerHTML = '<p>هنوز نظری ثبت نشده است.</p>';
+            return;
+        }
+        container.innerHTML = comments.map(c => `<div class="card"><p>${c.text}</p><small>${new Date(c.date).toLocaleString('fa-IR')}</small></div>`).join('');
+    }
+
+    async function addCommentToPost() {
+        const commentText = document.getElementById('newComment').value;
+        if (!commentText.trim()) return;
+        const post = allPosts.find(p => p.id === currentPostId);
+        if (post) {
+            post.comments = post.comments || [];
+            post.comments.push({ text: commentText, date: new Date().toISOString() });
+            await saveAllPosts();
+            document.getElementById('newComment').value = '';
+            loadData(); // reload to show new comment
+        }
+    }
+
+    async function saveAllPosts() {
+        const sha = await getCurrentFileSHA();
+        const content = btoa(unescape(encodeURIComponent(JSON.stringify(allPosts, null, 2))));
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${POSTS_FILE_PATH}`;
+        const body = { message: `Update post ${currentPostId}`, content: content, branch: BRANCH };
+        if (sha) body.sha = sha;
+        await fetch(url, {
+            method: 'PUT',
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+    }
+
+    async function getCurrentFileSHA() {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${POSTS_FILE_PATH}`;
+        const res = await fetch(url, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
+        if (res.status === 404) return null;
+        const data = await res.json();
+        return data.sha;
+    }
+
+    document.getElementById('submitComment').onclick = addCommentToPost;
+    loadData();
+</script>
+</body>
+</html>
